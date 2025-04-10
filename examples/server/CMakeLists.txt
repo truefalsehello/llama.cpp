@@ -11,6 +11,8 @@ endif()
 
 set(TARGET_SRCS
     server.cpp
+    md5.cpp
+    md5.h
     utils.hpp
     httplib.h
 )
