@@ -11,6 +11,7 @@ endif()
 
 set(TARGET_SRCS
     server.cpp
+    clip.cpp
     md5.cpp
     md5.h
     utils.hpp
