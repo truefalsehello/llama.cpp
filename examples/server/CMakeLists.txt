@@ -12,7 +12,9 @@ endif()
 set(TARGET_SRCS
     server.cpp
     clip.cpp
+    base64_tools.cpp
     md5.cpp
+    base64_tools.h
     md5.h
     utils.hpp
     httplib.h

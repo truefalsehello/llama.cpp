@@ -22,6 +22,10 @@
 #include <vector>
 #include <memory>
 
+
+#include "base64_tools.h"
+
+
 #define DEFAULT_OAICOMPAT_MODEL "gpt-3.5-turbo"
 
 using json = nlohmann::ordered_json;
@@ -642,17 +646,12 @@ static json oaicompat_completion_params_parse(
             }
 
             const auto url = msg_part.text;
-            if (url.size() <= 12) {
+            if (!isValidDataImageUrl(url)) {
                 continue;
             }
 
-            const std::string _url        = url;
-            size_t            base64Start = _url.find_first_of(',') + 1;
-
-            if (base64Start == std::string::npos) {
-                continue;
-            }
-            const auto base64 = _url.substr(base64Start);
+            size_t            base64Start = url.find_first_of(',') + 1;
+            const auto base64 = url.substr(base64Start);
             llama_params["image_data"].push_back({
                 { "data", base64 }
             });
