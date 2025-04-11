@@ -2335,7 +2335,6 @@ struct server_context {
             const auto & images_data = task.data.find("image_data");
             if (images_data != task.data.end() && images_data->is_array()) {
                 for (const auto & img : *images_data) {
-                    auto img_md5 = md5(img["data"].get<std::string>());
 
                     const std::vector<uint8_t> image_buffer = base64_decode(img["data"].get<std::string>());
                     
