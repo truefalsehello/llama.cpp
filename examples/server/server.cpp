@@ -1283,8 +1283,6 @@ struct server_slot {
     json                    prompt;
     // multimodal
     std::vector<slot_image> images;
-    map<string, int>        imgs_md5;
-    vector<int>             id2cache;
 
 
     int id;
@@ -1380,8 +1378,6 @@ struct server_slot {
         generated_tokens.clear();
         generated_token_probs.clear();
 
-        id2cache.clear();
-        imgs_md5.clear();
         for (slot_image & img : images) {
             img.prefix_prompt = "";
         }
@@ -2106,13 +2102,9 @@ struct server_context {
 
     // for multiple images processing
     bool ingest_images(server_slot & slot, int n_batch) {
-        int idx = 0;
+        int image_idx = 0;
 
-        while (idx < (int) slot.id2cache.size()) {
-            int image_idx        = slot.id2cache[idx];
-            if (image_idx < 0 || image_idx >= slot.images.size()){
-                return false;
-            }
+        while (image_idx < (int) slot.images.size()) {
             slot_image & img = slot.images[image_idx];
 
             // process prefix prompt
@@ -2140,15 +2132,15 @@ struct server_context {
             llama_set_causal_attn(ctx, true);
             LOG("Image decoded in %" PRId64 " ms\n", ggml_time_ms() - t1);
 
-            idx++;
+            image_idx++;
 
             common_batch_clear(batch);
 
             // append prefix of next image
-            const auto json_prompt = (idx >= (int) slot.id2cache.size()) ?
+            const auto json_prompt = (image_idx >= (int) slot.images.size()) ?
                                          slot.params.input_suffix :  // no more images, then process suffix prompt
                                          (json) (slot.images[image_idx].prefix_prompt);
-            if (json_prompt.empty() && !json_prompt.is_string()) {
+            if (json_prompt.empty()) {
                 continue;
             }
             
@@ -2342,26 +2334,13 @@ struct server_context {
         if (multimodal) {
             const auto & images_data = task.data.find("image_data");
             if (images_data != task.data.end() && images_data->is_array()) {
-                slot.id2cache.resize(images_data.value().size());
-                int i = -1;
                 for (const auto & img : *images_data) {
-                    i++;
                     auto img_md5 = md5(img["data"].get<std::string>());
-
-                    auto iter = slot.imgs_md5.find(img_md5);
-
-                    slot.id2cache[i] = i;
-                    if (iter != slot.imgs_md5.end()){
-                        slot.id2cache[i] = (*iter).second;
-                        continue;
-                    }
 
                     const std::vector<uint8_t> image_buffer = base64_decode(img["data"].get<std::string>());
                     
                     slot_image img_sl;
                     img_sl.id       = img.count("id") != 0 ? img["id"].get<int>() : slot.images.size();
-
-                    slot.imgs_md5[img_md5] = img_sl.id;
 
                     img_sl.img_data = clip_image_u8_init();
                     if (!clip_image_load_from_bytes(image_buffer.data(), image_buffer.size(), img_sl.img_data)) {
@@ -2386,12 +2365,6 @@ struct server_context {
                             std::string image_id = prompt.substr(pos, end_pos - pos);
                             try {
                                 int  img_id = std::stoi(image_id);
-                                if (img_id >= slot.id2cache.size()) {
-                                    LOG_ERR("ERROR: Image with id: %i, not found.\n", img_id);
-                                    slot.images.clear();
-                                    return false;
-                                }
-                                img_id     = slot.id2cache[img_id];
                                 bool found  = false;
                                 for (slot_image & img : slot.images) {
                                     if (img.id == img_id) {
@@ -4893,4 +4866,7 @@ int main(int argc, char ** argv) {
     ctx_server.queue_tasks.start_loop();
 
     clean_up();
-    // t.join(); // FIXME: http thread may stuck if there is an on-going request. we don't need to care about this for now as the HTTP connection will already be closed at this 
+    // t.join(); // FIXME: http thread may stuck if there is an on-going request. we don't need to care about this for now as the HTTP connection will already be closed at this point, but it's better to fix this
+
+    return 0;
+}
