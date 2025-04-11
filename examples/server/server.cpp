@@ -1379,6 +1379,14 @@ struct server_slot {
 
         generated_tokens.clear();
         generated_token_probs.clear();
+
+        id2cache.clear();
+        imgs_md5.clear();
+        for (slot_image & img : images) {
+            img.prefix_prompt = "";
+        }
+
+        images.clear();
     }
 
     bool is_non_causal() const {
@@ -2102,6 +2110,9 @@ struct server_context {
 
         while (idx < (int) slot.id2cache.size()) {
             int image_idx        = slot.id2cache[idx];
+            if (image_idx < 0 || image_idx >= slot.images.size()){
+                return false;
+            }
             slot_image & img = slot.images[image_idx];
 
             // process prefix prompt
@@ -2138,7 +2149,7 @@ struct server_context {
                                          slot.params.input_suffix :  // no more images, then process suffix prompt
                                          (json) (slot.images[image_idx].prefix_prompt);
             if (json_prompt.empty() && !json_prompt.is_string()) {
-                return false;
+                continue;
             }
             
             std::vector<llama_token> append_tokens = tokenize(json_prompt, false);  // has next image
@@ -3453,7 +3464,7 @@ struct server_context {
                             LOG_ERR("failed processing images\n");
                             slot.release();
                             send_error(slot, "failed processing images");
-                            return;
+                            continue;
                         }
 
                         // extract the logits only for the last token
@@ -4882,7 +4893,4 @@ int main(int argc, char ** argv) {
     ctx_server.queue_tasks.start_loop();
 
     clean_up();
-    // t.join(); // FIXME: http thread may stuck if there is an on-going request. we don't need to care about this for now as the HTTP connection will already be closed at this point, but it's better to fix this
-
-    return 0;
-}
+    // t.join(); // FIXME: http thread may stuck if there is an on-going request. we don't need to care about this for now as the HTTP connection will already be closed at this 
